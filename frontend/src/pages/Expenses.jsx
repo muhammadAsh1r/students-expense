@@ -33,7 +33,7 @@ const Expenses = () => {
     const fetchFriends = async () => {
       try {
         const token = localStorage.getItem("access");
-        const res = await axios.get("http://127.0.0.1:8000/api/friends/", {
+        const res = await axios.get("https://students-expense.onrender.com/api/friends/", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setFriends(res.data);
