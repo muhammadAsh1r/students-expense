@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-const API_URL = "http://127.0.0.1:8000/api"; // backend URL
+const API_URL = "https://students-expense.onrender.com/api/"; // backend URL
 
 // --------------------------
 // Async Thunks
