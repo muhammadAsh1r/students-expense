@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-jmx2(-xv0e9qin378kqpfat#8p!ai-4gdq!6#833vq!2vq*yyp
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -141,12 +141,3 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-
-import os
-from decouple import config
-
-SECRET_KEY = config("SECRET_KEY")
-DEBUG = config("DEBUG", cast=bool, default=False)
-
-ALLOWED_HOSTS = ["*"]
