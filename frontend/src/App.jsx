@@ -14,6 +14,8 @@ import PrivateRoute from "./components/PrivateRoute";
 import Home from "./pages/Home";
 import Expenses from "./pages/Expenses";
 import Friends from "./pages/Friends";
+import ShareExpense from "./pages/ShareExpenses";
+import ShareExpenses from "./pages/ShareExpenses";
 
 function AppContent() {
   const location = useLocation();
@@ -70,6 +72,14 @@ function AppContent() {
           element={
             <PrivateRoute>
               <Friends />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/shared-expense"
+          element={
+            <PrivateRoute>
+              <ShareExpenses />
             </PrivateRoute>
           }
         />

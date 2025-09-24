@@ -1,33 +1,40 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import (
-    RegisterView, LogoutView,
-    StudentProfileView, StudentUpdateProfileView,
-    FriendListView, AddFriendView, RemoveFriendView,
-    ExpenseViewSet
+    RegisterView,
+    LogoutView,
+    StudentProfileView,
+    StudentUpdateProfileView,
+    FriendListView,
+    AddFriendView,
+    RemoveFriendView,
+    ExpenseListCreateView,
+    ExpenseDetailView,
+    ExpenseShareListCreateView,
+    ExpenseShareDetailView,
 )
 
-# DRF router for Expense CRUD
-router = DefaultRouter()
-router.register(r'expenses', ExpenseViewSet, basename="expense")
-
 urlpatterns = [
-    # Auth
-    path('register/', RegisterView.as_view(), name='register'),
-    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('logout/', LogoutView.as_view(), name='logout'),
+    # Authentication
+    path("register/", RegisterView.as_view(), name="register"),
+    path("login/", TokenObtainPairView.as_view(), name="login"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
+    path("logout/", LogoutView.as_view(), name="logout"),
 
     # Student profile
-    path('profile/', StudentProfileView.as_view(), name='profile'),
-    path('profile/update/', StudentUpdateProfileView.as_view(), name='profile-update'),
+    path("profile/", StudentProfileView.as_view(), name="profile"),
+    path("profile/update/", StudentUpdateProfileView.as_view(), name="profile-update"),
 
-    # Friends management
-    path('friends/', FriendListView.as_view(), name='friend-list'),
-    path('friends/add/', AddFriendView.as_view(), name='add-friend'),
-    path('friends/remove/<int:pk>/', RemoveFriendView.as_view(), name='remove-friend'),
+    # Friends
+    path("friends/", FriendListView.as_view(), name="friend-list"),   
+    path("friends/add/", AddFriendView.as_view(), name="friend-add"),
+    path("friends/remove/<int:pk>/", RemoveFriendView.as_view(), name="friend-remove"),
 
-    # Include router URLs (expenses)
-    path('', include(router.urls)),
+    # Expenses
+    path("expenses/", ExpenseListCreateView.as_view(), name="expense-list-create"),
+    path("expenses/<int:pk>/", ExpenseDetailView.as_view(), name="expense-detail"),
+
+    # Expense Shares
+    path("expenses/<int:expense_id>/shares/", ExpenseShareListCreateView.as_view(), name="expense-share-list-create"),
+    path("shares/<int:pk>/", ExpenseShareDetailView.as_view(), name="expense-share-detail"),
 ]
