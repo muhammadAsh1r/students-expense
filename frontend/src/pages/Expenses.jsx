@@ -35,7 +35,7 @@ const Expenses = () => {
   };
 
   const api = axios.create({
-    baseURL: "http://localhost:8000/api",
+    baseURL: "https://students-expense.onrender.com/api",
     headers: {
       Authorization: `Bearer ${localStorage.getItem("access")}`,
     },
