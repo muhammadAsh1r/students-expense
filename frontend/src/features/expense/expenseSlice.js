@@ -1,15 +1,15 @@
+// src/features/expense/expenseSlice.js
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-const API_URL = "https://students-expense.onrender.com/api/expenses/";
+// Base API URL
+const API_URL = "http://127.0.0.1:8000/api/expenses/";
 
-// ---------------- Helper ----------------
+// ---------------- Helper for Auth Header ----------------
 const authHeader = () => {
   const token = localStorage.getItem("access");
   return {
-    headers: {
-      Authorization: token ? `Bearer ${token}` : "",
-    },
+    headers: { Authorization: token ? `Bearer ${token}` : "" },
   };
 };
 
@@ -20,41 +20,41 @@ export const fetchExpenses = createAsyncThunk(
   "expenses/fetchExpenses",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(API_URL, authHeader());
-      return response.data;
+      const res = await axios.get(API_URL, authHeader());
+      return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || "Error fetching expenses");
     }
   }
 );
 
-// Add expense
+// Add a new expense
 export const addExpense = createAsyncThunk(
   "expenses/addExpense",
-  async (expenseData, { rejectWithValue }) => {
+  async (data, { rejectWithValue }) => {
     try {
-      const response = await axios.post(API_URL, expenseData, authHeader());
-      return response.data;
+      const res = await axios.post(API_URL, data, authHeader());
+      return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || "Error adding expense");
     }
   }
 );
 
-// Update expense
+// Update an expense
 export const updateExpense = createAsyncThunk(
   "expenses/updateExpense",
   async ({ id, updatedData }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${API_URL}${id}/`, updatedData, authHeader());
-      return response.data;
+      const res = await axios.put(`${API_URL}${id}/`, updatedData, authHeader());
+      return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || "Error updating expense");
     }
   }
 );
 
-// Delete expense
+// Delete an expense
 export const deleteExpense = createAsyncThunk(
   "expenses/deleteExpense",
   async (id, { rejectWithValue }) => {
@@ -68,11 +68,10 @@ export const deleteExpense = createAsyncThunk(
 );
 
 // ---------------- Slice ----------------
-const expensesSlice = createSlice({
+const expenseSlice = createSlice({
   name: "expenses",
   initialState: {
     items: [],
-    loading: false, // general loading
     fetchLoading: false,
     addLoading: false,
     updateLoading: false,
@@ -83,10 +82,18 @@ const expensesSlice = createSlice({
     clearExpenseError: (state) => {
       state.error = null;
     },
+    resetExpenses: (state) => {
+      state.items = [];
+      state.error = null;
+      state.fetchLoading = false;
+      state.addLoading = false;
+      state.updateLoading = false;
+      state.deleteLoading = false;
+    },
   },
   extraReducers: (builder) => {
     builder
-      // ---------------- Fetch ----------------
+      // -------- Fetch Expenses --------
       .addCase(fetchExpenses.pending, (state) => {
         state.fetchLoading = true;
         state.error = null;
@@ -100,7 +107,7 @@ const expensesSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ---------------- Add ----------------
+      // -------- Add Expense --------
       .addCase(addExpense.pending, (state) => {
         state.addLoading = true;
         state.error = null;
@@ -114,14 +121,14 @@ const expensesSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ---------------- Update ----------------
+      // -------- Update Expense --------
       .addCase(updateExpense.pending, (state) => {
         state.updateLoading = true;
         state.error = null;
       })
       .addCase(updateExpense.fulfilled, (state, action) => {
         state.updateLoading = false;
-        const index = state.items.findIndex((exp) => exp.id === action.payload.id);
+        const index = state.items.findIndex((e) => e.id === action.payload.id);
         if (index !== -1) state.items[index] = action.payload;
       })
       .addCase(updateExpense.rejected, (state, action) => {
@@ -129,14 +136,14 @@ const expensesSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ---------------- Delete ----------------
+      // -------- Delete Expense --------
       .addCase(deleteExpense.pending, (state) => {
         state.deleteLoading = true;
         state.error = null;
       })
       .addCase(deleteExpense.fulfilled, (state, action) => {
         state.deleteLoading = false;
-        state.items = state.items.filter((exp) => exp.id !== action.payload);
+        state.items = state.items.filter((e) => e.id !== action.payload);
       })
       .addCase(deleteExpense.rejected, (state, action) => {
         state.deleteLoading = false;
@@ -145,5 +152,5 @@ const expensesSlice = createSlice({
   },
 });
 
-export const { clearExpenseError } = expensesSlice.actions;
-export default expensesSlice.reducer;
+export const { clearExpenseError, resetExpenses } = expenseSlice.actions;
+export default expenseSlice.reducer;

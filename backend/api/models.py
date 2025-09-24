@@ -1,6 +1,6 @@
+# api/models.py
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models import Q
 
 
 class Student(models.Model):
@@ -14,13 +14,20 @@ class Student(models.Model):
 
 
 class Expense(models.Model):
-    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="expenses")
-    title = models.CharField(max_length=200)
+    payer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="expenses_paid")
+    title = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    description = models.TextField(blank=True, null=True)
-    date = models.DateField(auto_now_add=True)
-    people = models.ManyToManyField(Student, related_name="shared_expenses", blank=True)  # <-- new field
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.title} - {self.amount}"
+        return f"{self.title} - {self.amount} by {self.payer.username}"
+
+
+class ExpenseShare(models.Model):
+    expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name="shares")
+    payee = models.ForeignKey(User, on_delete=models.CASCADE, related_name="shares")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.payee.username} owes {self.amount} for {self.expense.title}"
 

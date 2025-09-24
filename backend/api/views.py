@@ -1,20 +1,20 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
-from rest_framework import generics, status, viewsets, permissions
+from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied
 from django.db.models import Q
 
-from .models import Student, Expense
+from .models import Student, Expense, ExpenseShare
 from .serializers import (
     RegisterSerializer,
     LogoutSerializer,
     StudentSerializer,
     StudentUpdateSerializer,
-    FriendSerializer,
-    ExpenseSerializer
+    ExpenseSerializer,
+    ExpenseShareSerializer,
 )
 
 # ---------------------------
@@ -42,10 +42,9 @@ class StudentProfileView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        try:
-            return self.request.user.student_profile
-        except Student.DoesNotExist:
+        if not hasattr(self.request.user, "student_profile"):
             raise PermissionDenied("Profile does not exist.")
+        return self.request.user.student_profile
 
 
 class StudentUpdateProfileView(generics.UpdateAPIView):
@@ -53,10 +52,9 @@ class StudentUpdateProfileView(generics.UpdateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        try:
-            return self.request.user.student_profile
-        except Student.DoesNotExist:
+        if not hasattr(self.request.user, "student_profile"):
             raise PermissionDenied("Profile does not exist.")
+        return self.request.user.student_profile
 
 
 # ---------------------------
@@ -69,7 +67,7 @@ class FriendListView(APIView):
     def get(self, request):
         student = request.user.student_profile
         friends = student.friends.all()
-        serializer = FriendSerializer(friends, many=True)
+        serializer = StudentSerializer(friends, many=True)
         return Response(serializer.data)
 
 
@@ -91,6 +89,9 @@ class AddFriendView(APIView):
         if friend == student:
             return Response({"detail": "You cannot add yourself as a friend."}, status=status.HTTP_400_BAD_REQUEST)
 
+        if student.friends.filter(id=friend.id).exists():
+            return Response({"detail": "Already friends."}, status=status.HTTP_400_BAD_REQUEST)
+
         student.friends.add(friend)
         return Response({"detail": f"{friend.user.username} added as friend"}, status=status.HTTP_201_CREATED)
 
@@ -101,44 +102,143 @@ class RemoveFriendView(APIView):
     def delete(self, request, pk):
         student = request.user.student_profile
         friend = get_object_or_404(Student, pk=pk)
+        if not student.friends.filter(pk=friend.pk).exists():
+            return Response({"detail": "Not in your friends list."}, status=status.HTTP_400_BAD_REQUEST)
         student.friends.remove(friend)
         return Response({"detail": f"{friend.user.username} removed from friends"}, status=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------
-# Expenses CRUD
+# Expenses
 # ---------------------------
 
-class ExpenseViewSet(viewsets.ModelViewSet):
-    serializer_class = ExpenseSerializer
+class ExpenseListCreateView(APIView):
     permission_classes = [IsAuthenticated]
-    queryset = Expense.objects.all()  # Needed for schema & browsable API
 
-    def get_queryset(self):
-        student = getattr(self.request.user, "student_profile", None)
-        if not student:
-            return Expense.objects.none()
-        # Return expenses created by student OR shared with student
-        return Expense.objects.filter(Q(student=student) | Q(people=student)).distinct()
+    def get(self, request):
+        # Show expenses where user is payer OR payee
+        expenses = (
+            Expense.objects.filter(Q(payer=request.user) | Q(shares__payee=request.user))
+            .distinct()
+            .order_by("-created_at")
+        )
+        serializer = ExpenseSerializer(expenses, many=True)
+        return Response(serializer.data)
 
-    def perform_create(self, serializer):
-        student = self.request.user.student_profile
-        # Save expense
-        instance = serializer.save(student=student)
+    def post(self, request):
+        serializer = ExpenseSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(payer=request.user)  # Only payer creates expenses
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # Attach people from people_ids
-        people_ids = self.request.data.get("people_ids", [])
-        people_objs = Student.objects.filter(id__in=people_ids)
-        if student not in people_objs:
-            people_objs = list(people_objs) + [student]
-        instance.people.set(people_objs)
 
-    def perform_update(self, serializer):
-        # Ensure the student is not changed
-        serializer.save(student=self.request.user.student_profile)
+class ExpenseDetailView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    def perform_destroy(self, instance):
-        student = self.request.user.student_profile
-        if instance.student != student:
-            raise PermissionDenied("You can only delete your own expenses.")
-        instance.delete()
+    def get_object(self, pk, user):
+        return get_object_or_404(
+            Expense.objects.filter(Q(payer=user) | Q(shares__payee=user)).distinct(),
+            pk=pk,
+        )
+
+    def get(self, request, pk):
+        expense = self.get_object(pk, request.user)
+        serializer = ExpenseSerializer(expense)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        expense = self.get_object(pk, request.user)
+        if expense.payer != request.user:
+            raise PermissionDenied("Only the payer can update this expense.")
+        serializer = ExpenseSerializer(expense, data=request.data)
+        if serializer.is_valid():
+            serializer.save(payer=request.user)
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk):
+        expense = self.get_object(pk, request.user)
+        if expense.payer != request.user:
+            raise PermissionDenied("Only the payer can update this expense.")
+        serializer = ExpenseSerializer(expense, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save(payer=request.user)
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        expense = self.get_object(pk, request.user)
+        if expense.payer != request.user:
+            raise PermissionDenied("Only the payer can delete this expense.")
+        expense.delete()
+        return Response({"detail": "Expense deleted"}, status=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------
+# Expense Shares
+# ---------------------------
+
+class ExpenseShareListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, expense_id):
+        # Allow payer and payees to see shares
+        expense = get_object_or_404(
+            Expense.objects.filter(Q(payer=request.user) | Q(shares__payee=request.user)).distinct(),
+            pk=expense_id,
+        )
+        shares = expense.shares.all()
+        serializer = ExpenseShareSerializer(shares, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, expense_id):
+        # Only payer can add shares
+        expense = get_object_or_404(Expense, pk=expense_id, payer=request.user)
+        serializer = ExpenseShareSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(expense=expense)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ExpenseShareDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, pk, user):
+        return get_object_or_404(
+            ExpenseShare.objects.filter(Q(expense__payer=user) | Q(payee=user)).distinct(),
+            pk=pk,
+        )
+
+    def get(self, request, pk):
+        share = self.get_object(pk, request.user)
+        serializer = ExpenseShareSerializer(share)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        share = self.get_object(pk, request.user)
+        if share.expense.payer != request.user:
+            raise PermissionDenied("Only the payer can update shares.")
+        serializer = ExpenseShareSerializer(share, data=request.data)
+        if serializer.is_valid():
+            serializer.save(expense=share.expense)  # ensure expense link is preserved
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk):
+        share = self.get_object(pk, request.user)
+        if share.expense.payer != request.user:
+            raise PermissionDenied("Only the payer can update shares.")
+        serializer = ExpenseShareSerializer(share, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save(expense=share.expense)  # ensure expense link is preserved
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        share = self.get_object(pk, request.user)
+        if share.expense.payer != request.user:
+            raise PermissionDenied("Only the payer can delete shares.")
+        share.delete()
+        return Response({"detail": "Expense share deleted"}, status=status.HTTP_204_NO_CONTENT)
